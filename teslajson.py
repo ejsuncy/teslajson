@@ -20,11 +20,12 @@ try: # Python 3
     from urllib.request import ProxyHandler, HTTPBasicAuthHandler, HTTPHandler
 except: # Python 2
     from urllib import urlencode
-    from urllib2 import Request, build_opener
+    from urllib2 import Request, build_opener, HTTPError
     from urllib2 import ProxyHandler, HTTPBasicAuthHandler, HTTPHandler
 import json
 import datetime
 import calendar
+import polling
 
 class Connection(object):
     """Connection to Tesla Motors API"""
@@ -116,7 +117,15 @@ class Connection(object):
                 opener = build_opener(handler)
         else:
             opener = build_opener()
-        resp = opener.open(req)
+
+        try:
+            resp = opener.open(req)
+        except HTTPError as e:
+            if e.getcode() == 408:
+                raise ContinuePollingError
+            else:
+                raise e
+
         charset = resp.info().get('charset', 'utf-8')
         return json.loads(resp.read().decode(charset))
         
@@ -141,9 +150,18 @@ class Vehicle(dict):
         result = self.get('data_request/%s' % name)
         return result['response']
     
-    def wake_up(self):
-        """Wake the vehicle"""
-        return self.post('wake_up')
+    def wake_up(self, timeout=35, step=3):
+        """Wake the vehicle
+
+        timeout and step are in seconds, request will be sent every [step] seconds up to [timeout] seconds.
+        if timeout is reached, TimeoutError is raised
+        """
+        return polling.poll(
+            lambda: self.post('wake_up'), # if returns any value then it woke up
+            ignore_exceptions=(ContinuePollingError,),
+            timeout=timeout,
+            step=step,
+        )
     
     def command(self, name, data={}):
         """Run the command for the vehicle"""
@@ -156,3 +174,11 @@ class Vehicle(dict):
     def post(self, command, data={}):
         """Utility command to post data to API"""
         return self.connection.post('vehicles/%i/%s' % (self['id'], command), data)
+
+
+class ContinuePollingError (HTTPError):
+    pass
+
+
+class TimeoutError(Exception):
+    pass
