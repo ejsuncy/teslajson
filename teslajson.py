@@ -157,12 +157,12 @@ class Vehicle(dict):
         if timeout is reached, TimeoutError is raised
         """
         return polling.poll(
-            lambda: self.post('wake_up'), # if returns any value then it woke up
+            lambda: self.post('wake_up') is not None,
             ignore_exceptions=(ContinuePollingError,),
             timeout=timeout,
             step=step,
         )
-    
+
     def command(self, name, data={}):
         """Run the command for the vehicle"""
         return self.post('command/%s' % name, data)
@@ -176,7 +176,7 @@ class Vehicle(dict):
         return self.connection.post('vehicles/%i/%s' % (self['id'], command), data)
 
 
-class ContinuePollingError (Exception):
+class ContinuePollingError(Exception):
     pass
 
 
