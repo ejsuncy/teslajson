@@ -176,7 +176,7 @@ class Vehicle(dict):
         return self.connection.post('vehicles/%i/%s' % (self['id'], command), data)
 
 
-class ContinuePollingError (HTTPError):
+class ContinuePollingError (Exception):
     pass
 
 
